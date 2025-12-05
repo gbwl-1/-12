@@ -33,12 +33,12 @@
   </div>
 
   <script>
-    // 사용자가 제공한 11개 문항(1~10은 결과 반영, 11은 주관식)
+    // 1~11번 질문(11번은 주관식). 12번은 동률 시에만 묻는 추가 질문으로 별도 처리
     const QUESTIONS = [
       { id: 1, text: "1. 당신이 좋아하는 건?", choices: [
         { key: "A", text: "강아지가 좋습니다." },
         { key: "B", text: "고양이가 좋습니다." },
-        { key: "C", text: "닭이 좋습니다." }
+        { key: "C", text: "닭이 좋습니다" }
       ]},
       { id: 2, text: "2. 천만 원을 가지게 된다면 무엇을 하고 싶나요?", choices: [
         { key: "A", text: "실험체로 살고 싶습니다." },
@@ -52,7 +52,7 @@
       ]},
       { id: 4, text: "4. 당신의 신체능력은 어떠신가요?", choices: [
         { key: "A", text: "숨 쉬기도 벅찹니다." },
-        { key: "B", text: "건강튼튼 어떤 위험이든 감수할 수 있습니다." },
+        { key: "B", text: "건강튼튼 어떤 위험이든 감수할 수 있습니다" },
         { key: "C", text: "닭이 좋습니다." }
       ]},
       { id: 5, text: "5. 무엇이 더 중요한가요?", choices: [
@@ -88,6 +88,17 @@
       { id: 11, text: "11. 당신이 생각하는 좋은 삶이란 어떤 삶인가요? (주관식 문제)", choices: null }
     ];
 
+    // 12번 추가 질문 (동률 시에만 표시)
+    const TIE_QUESTION = {
+      id: 12,
+      text: "12. 평온한 삶을 원하시나요?",
+      choices: [
+        { key: "A", text: "네." },           // 선호 A
+        { key: "B", text: "아니요." },       // 선호 B
+        { key: "C", text: "■■ ■ ■■■" }   // 선호 C
+      ]
+    };
+
     const RESULT_TEXT = {
       A: {
         title: "축하합니다, 당신은 모두의 마망 닭 실험체 타입!",
@@ -104,7 +115,9 @@
     };
 
     let current = 0;
-    // answers: index -> 선택한 key ("A"/"B"/"C") or text for 11번
+    let tieMode = false;           // 동률 해결용 모드 활성화 여부
+    let tieCandidates = [];        // 동률일 때 후보들(A/B/C)
+    // answers: index 0..10 (1~11번), 11번 주관식은 텍스트
     let answers = Array(QUESTIONS.length).fill(null);
 
     const qText = document.getElementById('questionText');
@@ -117,6 +130,9 @@
     function init() { render(); }
 
     function render() {
+      // if tieMode, render tie question instead
+      if (tieMode) return renderTieQuestion();
+
       if (current < 0) current = 0;
       if (current >= QUESTIONS.length) return showResult();
 
@@ -157,9 +173,63 @@
       nextBtn.textContent = current === QUESTIONS.length - 1 ? '결과 보기' : '다음';
     }
 
-    prevBtn.addEventListener('click', () => { current--; render(); });
+    function renderTieQuestion() {
+      // tieMode와 tieCandidates가 설정되어 있을 때 호출
+      progressEl.textContent = "동률이 발생했습니다 — 추가 질문";
+      qText.textContent = TIE_QUESTION.text;
+      choicesEl.innerHTML = '';
+      TIE_QUESTION.choices.forEach((c, i) => {
+        const li = document.createElement('li');
+        const id = 'tie-choice-' + i;
+        li.innerHTML = `
+          <label style="cursor:pointer;">
+            <input type="radio" name="tie" id="${id}" value="${c.key}" />
+            ${c.text}
+          </label>
+        `;
+        choicesEl.appendChild(li);
+      });
+
+      // tie 모드에서는 prev로 이전 질문으로 돌아갈 수 있게 한다
+      prevBtn.disabled = false;
+      nextBtn.textContent = '재판정';
+      // 리스너는 nextBtn의 공통 핸들러에서 처리 (tieMode 체크)
+    }
+
+    prevBtn.addEventListener('click', () => {
+      if (tieMode) {
+        // tie 질문에서 이전으로 돌아가면 tie 모드 해제하고 질문 마지막으로 복귀
+        tieMode = false;
+        tieCandidates = [];
+        // current를 마지막 질문(11번 주관식)으로 이동시키지 않고 사용자 흐름을 보존하기 위해
+        // 여기서는 quiz를 다시 보여주기만 함
+        render();
+        return;
+      }
+      current--;
+      render();
+    });
 
     nextBtn.addEventListener('click', () => {
+      if (tieMode) {
+        // tie 질문에 대한 선택 확인 및 재판정
+        const selected = choicesEl.querySelector('input[name="tie"]:checked');
+        if (!selected) { alert('옵션을 하나 선택해주세요.'); return; }
+        const preferred = selected.value; // 'A'|'B'|'C'
+        // 만약 preferred가 tieCandidates에 있으면 그것을 승자로, 아니면 우선순위(A>B>C)로 선택
+        let winner = null;
+        if (tieCandidates.includes(preferred)) {
+          winner = preferred;
+        } else {
+          // 우선순위로 tieCandidates 중 첫번째 선택
+          const priority = ['A','B','C'];
+          winner = priority.find(k => tieCandidates.includes(k));
+        }
+        // 최종 결과 표시
+        showFinalResultFor(winner);
+        return;
+      }
+
       const q = QUESTIONS[current];
       if (q.choices && answers[current] == null) {
         alert('옵션을 하나 선택해주세요.');
@@ -169,40 +239,46 @@
         current++;
         render();
       } else {
-        showResult();
+        // 기본 집계 -> 만약 동률(무승부)이면 tieMode로 전환하여 12번 질문을 보여줌
+        const counted = answers.slice(0, 10);
+        const counts = { A:0, B:0, C:0 };
+        counted.forEach(v => {
+          if (v === 'A') counts.A++;
+          if (v === 'B') counts.B++;
+          if (v === 'C') counts.C++;
+        });
+
+        // winners는 counts >=4 인 것들
+        const winners = [];
+        if (counts.A >= 4) winners.push('A');
+        if (counts.B >= 4) winners.push('B');
+        if (counts.C >= 4) winners.push('C');
+
+        if (winners.length === 1) {
+          // 확정 결과 바로 표시
+          showFinalResultFor(winners[0]);
+        } else if (winners.length > 1) {
+          // 동률 -> tieMode로 전환하고 12번 질문 보여주기
+          tieMode = true;
+          tieCandidates = winners.slice(); // 복사
+          renderTieQuestion();
+        } else {
+          // 어떤 것도 4개 이상이 아니면 판정 불가
+          showNoResult();
+        }
       }
     });
 
-    function showResult() {
-      // 1~10번만 계산
-      const counted = answers.slice(0, 10);
-      const counts = { A:0, B:0, C:0 };
-      counted.forEach(v => {
-        if (v === 'A') counts.A++;
-        if (v === 'B') counts.B++;
-        if (v === 'C') counts.C++;
-      });
-
-      const winners = [];
-      if (counts.A >= 4) winners.push('A');
-      if (counts.B >= 4) winners.push('B');
-      if (counts.C >= 4) winners.push('C');
-
+    function showFinalResultFor(key) {
+      // key는 'A'|'B'|'C' (이미 counts >=4 인 winners에서 골랐음)
       let html = '';
-      if (winners.length === 1) {
-        const key = winners[0];
+      if (key && RESULT_TEXT[key]) {
         html += `<h2>${escapeHtml(RESULT_TEXT[key].title)}</h2>`;
         html += `<p>${escapeHtml(RESULT_TEXT[key].desc)}</p>`;
-      } else if (winners.length > 1) {
-        html += `<h2>무승부 결과</h2>`;
-        html += `<p>여러 유형이 동시에 조건을 만족했습니다. (동률)</p>`;
       } else {
         html += `<h2>결과를 판정할 수 없습니다</h2>`;
-        html += `<p>어떤 유형도 4개 이상 선택되지 않았습니다.</p>`;
+        html += `<p>오류가 발생했습니다.</p>`;
       }
-
-      // 사용자 요청에 따라: 주관식(11번)과 세부 점수는 결과 페이지에 표시하지 않습니다.
-
       html += `<div style="margin-top:12px;"><button id="restartBtn">다시 하기</button></div>`;
 
       resultEl.classList.remove('hidden');
@@ -210,8 +286,28 @@
       document.getElementById('quiz').classList.add('hidden');
 
       document.getElementById('restartBtn').addEventListener('click', () => {
+        // 초기화
         answers = Array(QUESTIONS.length).fill(null);
         current = 0;
+        tieMode = false;
+        tieCandidates = [];
+        document.getElementById('quiz').classList.remove('hidden');
+        resultEl.classList.add('hidden');
+        render();
+      });
+    }
+
+    function showNoResult() {
+      let html = `<h2>결과를 판정할 수 없습니다</h2><p>어떤 유형도 4개 이상 선택되지 않았습니다.</p>`;
+      html += `<div style="margin-top:12px;"><button id="restartBtn">다시 하기</button></div>`;
+      resultEl.classList.remove('hidden');
+      resultEl.innerHTML = html;
+      document.getElementById('quiz').classList.add('hidden');
+      document.getElementById('restartBtn').addEventListener('click', () => {
+        answers = Array(QUESTIONS.length).fill(null);
+        current = 0;
+        tieMode = false;
+        tieCandidates = [];
         document.getElementById('quiz').classList.remove('hidden');
         resultEl.classList.add('hidden');
         render();
