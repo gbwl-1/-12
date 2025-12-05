@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>두근두근 나는 어떤 타입의 실험체일까?</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding: 24px; max-width:700px; margin:0 auto; }
+    h1 { text-align:center; }
+    .question { margin:20px 0; }
+    .choices { list-style:none; padding:0; }
+    .choices li { margin:8px 0; }
+    button { padding:10px 16px; cursor:pointer; }
+    .result { border-top:1px solid #ddd; margin-top:20px; padding-top:20px; }
+    .hidden { display:none; }
+    textarea { font-family: inherit; }
+  </style>
+</head>
+<body>
+  <h1>두근두근 나는 어떤 타입의 실험체일까?</h1>
+  <div id="app">
+    <div id="quiz">
+      <div id="progress"></div>
+      <div class="question" id="questionText"></div>
+      <ul class="choices" id="choices"></ul>
+      <div style="margin-top:12px;">
+        <button id="prevBtn">이전</button>
+        <button id="nextBtn">다음</button>
+      </div>
+    </div>
+
+    <div id="result" class="result hidden"></div>
+  </div>
+
+  <script>
+    // 사용자가 제공한 11개 문항(1~10은 결과 반영, 11은 주관식)
+    const QUESTIONS = [
+      { id: 1, text: "1. 당신이 좋아하는 건?", choices: [
+        { key: "A", text: "강아지가 좋습니다." },
+        { key: "B", text: "고양이가 좋습니다." },
+        { key: "C", text: "닭이 좋습니다." }
+      ]},
+      { id: 2, text: "2. 천만 원을 가지게 된다면 무엇을 하고 싶나요?", choices: [
+        { key: "A", text: "실험체로 살고 싶습니다." },
+        { key: "B", text: "죽기." },
+        { key: "C", text: "닭이 좋습니다." }
+      ]},
+      { id: 3, text: "3. 협동심에 대해 어떻게 생각하나요?", choices: [
+        { key: "A", text: "살아가며 반드시 필요한 것 필요합니다." },
+        { key: "B", text: "ㅉ나 혼자 살기 바쁘다 필요없습니다." },
+        { key: "C", text: "닭이 좋습니다." }
+      ]},
+      { id: 4, text: "4. 당신의 신체능력은 어떠신가요?", choices: [
+        { key: "A", text: "숨 쉬기도 벅찹니다." },
+        { key: "B", text: "건강튼튼 어떤 위험이든 감수할 수 있습니다." },
+        { key: "C", text: "닭이 좋습니다." }
+      ]},
+      { id: 5, text: "5. 무엇이 더 중요한가요?", choices: [
+        { key: "A", text: "자신." },
+        { key: "B", text: "타인." },
+        { key: "C", text: "닭." }
+      ]},
+      { id: 6, text: "6. 당신의 상황 대처 능력은?", choices: [
+        { key: "A", text: "대처를 못 한다." },
+        { key: "B", text: "갑작스런 상황에서도 잘 대처할 수 있다." },
+        { key: "C", text: "엎는다." }
+      ]},
+      { id: 7, text: "7. 당신은 실험체로서 적절한 존재인가요?", choices: [
+        { key: "A", text: "이번 실험은 실패입니다." },
+        { key: "B", text: "천만 원이나 주세요." },
+        { key: "C", text: "구내식당에 설렁탕이라며 왜 미역줄기냐." }
+      ]},
+      { id: 8, text: "8. 선인인가요?", choices: [
+        { key: "A", text: "닭입니다." },
+        { key: "B", text: "병아립니다." },
+        { key: "C", text: "실험체입니다." }
+      ]},
+      { id: 9, text: "9. 악인인가요?", choices: [
+        { key: "A", text: "네." },
+        { key: "B", text: "맞습니다." },
+        { key: "C", text: "실험체입니다." }
+      ]},
+      { id: 10, text: "10. 좋은 삶을 살고 계신가요?", choices: [
+        { key: "A", text: "네." },
+        { key: "B", text: "아니요." },
+        { key: "C", text: "모르겠습니다." }
+      ]},
+      { id: 11, text: "11. 당신이 생각하는 좋은 삶이란 어떤 삶인가요? (주관식 문제)", choices: null }
+    ];
+
+    const RESULT_TEXT = {
+      A: {
+        title: "축하합니다, 당신은 모두의 마망 닭 실험체 타입!",
+        desc: "순종적이고 온순한 닭입니다. 연구소 내 구내식당에 나오는 설렁탕 하나에도 감사함과 기쁨과 감격과 감동을 느끼며 연구원들을 업신 여길 수 있는 쉬운 타입! 연구원에게 사랑받기 딱 좋으시겠어요~ 그러나 너무 온순하기만 한 건 흥미를 떨어트릴 수 있으니 가끔은 돌발 행동으로 보는 이로 하여금 재미를 올리는 건 어떠실까요? 안 그럼 폐기라고요!"
+      },
+      B: {
+        title: "축하합니다, 당신은 불속성 효자 실험체 타입!",
+        desc: "다루기 어렵고 늘 반항적인 당신은 병아리입니다. 어떤 실험을 하든 예상을 벗어나고, 돌발 행동을 할 수 있어 늘 주의 깊게 지켜봐야 하는 위험인물이군요! 연구원들에게 새벽마다 구타 당하기 딱 좋으시겠어요~ 그러나 너무 반항만 하는 건 금방 지쳐버릴 수 있으니 가끔은 온순한 닭으로 빙의하는 건 어떠실까요? 안 그럼 폐기랍니다."
+      },
+      C: {
+        title: "폐기입니다.",
+        desc: "폐기입니다."
+      }
+    };
+
+    let current = 0;
+    // answers: index -> 선택한 key ("A"/"B"/"C") or text for 11번
+    let answers = Array(QUESTIONS.length).fill(null);
+
+    const qText = document.getElementById('questionText');
+    const choicesEl = document.getElementById('choices');
+    const progressEl = document.getElementById('progress');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const resultEl = document.getElementById('result');
+
+    function init() { render(); }
+
+    function render() {
+      if (current < 0) current = 0;
+      if (current >= QUESTIONS.length) return showResult();
+
+      const q = QUESTIONS[current];
+      progressEl.textContent = "질문 " + (current + 1) + " / " + QUESTIONS.length;
+      qText.textContent = q.text;
+      choicesEl.innerHTML = '';
+
+      if (!q.choices) {
+        // 주관식
+        const li = document.createElement('li');
+        li.innerHTML = `<textarea id="freeText" rows="6" style="width:100%;">${answers[current] ? escapeHtml(answers[current]) : ''}</textarea>`;
+        choicesEl.appendChild(li);
+        document.getElementById('freeText').addEventListener('input', (e) => {
+          answers[current] = e.target.value;
+        });
+      } else {
+        q.choices.forEach((c, i) => {
+          const li = document.createElement('li');
+          const id = 'choice-' + current + '-' + i;
+          li.innerHTML = `
+            <label style="cursor:pointer;">
+              <input type="radio" name="q${current}" id="${id}" value="${c.key}" ${answers[current] === c.key ? 'checked' : ''} />
+              ${c.text}
+            </label>
+          `;
+          choicesEl.appendChild(li);
+        });
+
+        choicesEl.querySelectorAll('input[type=radio]').forEach(radio => {
+          radio.addEventListener('change', (e) => {
+            answers[current] = e.target.value;
+          });
+        });
+      }
+
+      prevBtn.disabled = current === 0;
+      nextBtn.textContent = current === QUESTIONS.length - 1 ? '결과 보기' : '다음';
+    }
+
+    prevBtn.addEventListener('click', () => { current--; render(); });
+
+    nextBtn.addEventListener('click', () => {
+      const q = QUESTIONS[current];
+      if (q.choices && answers[current] == null) {
+        alert('옵션을 하나 선택해주세요.');
+        return;
+      }
+      if (current < QUESTIONS.length - 1) {
+        current++;
+        render();
+      } else {
+        showResult();
+      }
+    });
+
+    function showResult() {
+      // 1~10번만 계산
+      const counted = answers.slice(0, 10);
+      const counts = { A:0, B:0, C:0 };
+      counted.forEach(v => {
+        if (v === 'A') counts.A++;
+        if (v === 'B') counts.B++;
+        if (v === 'C') counts.C++;
+      });
+
+      const winners = [];
+      if (counts.A >= 4) winners.push('A');
+      if (counts.B >= 4) winners.push('B');
+      if (counts.C >= 4) winners.push('C');
+
+      let html = '';
+      if (winners.length === 1) {
+        const key = winners[0];
+        html += `<h2>${escapeHtml(RESULT_TEXT[key].title)}</h2>`;
+        html += `<p>${escapeHtml(RESULT_TEXT[key].desc)}</p>`;
+      } else if (winners.length > 1) {
+        html += `<h2>무승부 결과</h2>`;
+        html += `<p>여러 유형이 동시에 조건을 만족했습니다. (동률)</p>`;
+      } else {
+        html += `<h2>결과를 판정할 수 없습니다</h2>`;
+        html += `<p>어떤 유형도 4개 이상 선택되지 않았습니다.</p>`;
+      }
+
+      // 사용자 요청에 따라: 주관식(11번)과 세부 점수는 결과 페이지에 표시하지 않습니다.
+
+      html += `<div style="margin-top:12px;"><button id="restartBtn">다시 하기</button></div>`;
+
+      resultEl.classList.remove('hidden');
+      resultEl.innerHTML = html;
+      document.getElementById('quiz').classList.add('hidden');
+
+      document.getElementById('restartBtn').addEventListener('click', () => {
+        answers = Array(QUESTIONS.length).fill(null);
+        current = 0;
+        document.getElementById('quiz').classList.remove('hidden');
+        resultEl.classList.add('hidden');
+        render();
+      });
+    }
+
+    function escapeHtml(unsafe) {
+      return String(unsafe)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    init();
+  </script>
+</body>
+</html>
